@@ -28,10 +28,16 @@ holdings:
 
   - name: "恒生科技 指数"
     symbol_ref: "hkHSTECH"
+  
+  - name: "黄金ETF"
+    symbol_ref: "sh518880"  
 
   - name: "红利低波50ETF"
     symbol_ref: "sh515450"     # 南方标普红利低波50ETF (场内实时)
-  
-  - name: "黄金ETF"
-    symbol_ref: "sh518880"     
+
+  - name: "有色金属ETF"
+    symbol_ref: "sh512400"      # 南方中证申万有色金属ETF
+
+  - name: "粮食ETF"
+    symbol_ref: "sz159698"      # 粮食ETF
 
