@@ -21,7 +21,7 @@ gold_monitor_interval: 5
 # 持仓列表 (仅供日报使用)
 holdings:
   - name: "纳斯达克100 指数"
-    symbol_ref: "usNDX"        # 纳指实盘指数
+    symbol_ref: "usNDX"        
 
   - name: "沪深300 指数"
     symbol_ref: "sh000300"  
