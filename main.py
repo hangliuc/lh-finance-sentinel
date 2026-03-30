@@ -5,7 +5,7 @@ import logging
 import yaml
 import os
 
-from app.core.notifier import WeComNotifier
+from app.core.notifier import FeishuNotifier
 from app.tasks.daily_reporter import DailyReporter
 from app.tasks.gold_watcher import GoldWatcher
 
