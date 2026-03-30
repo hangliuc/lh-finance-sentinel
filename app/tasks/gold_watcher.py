@@ -74,10 +74,9 @@ class GoldWatcher:
         if xau_price == 0: return
         
         usd_cnh = self._get_swissquote_data("USD/CNH")
-        if usd_cnh == 0: usd_cnh = 7.25 # 极端情况下的保底汇率
+        if usd_cnh == 0: usd_cnh = 7.25 # 保底汇率
         
         # 2. 国际标准换算：计算国内 AU9999 (元/克)
-        # 1 金衡盎司(Troy Ounce) = 31.1034768 克
         au9999_price = (xau_price / 31.1034768) * usd_cnh
 
         if self.baseline_price is None:
@@ -92,65 +91,46 @@ class GoldWatcher:
         level = 0
         step = 1.0
 
-        if pct >= 1.0:
+        if pct >= 1:
             level = int(pct / step) 
-        elif pct <= -1.0:
+        elif pct <= -1:
             level = int(pct / step)
         
-        # 3. 触发飞书高级卡片报警
+        # 3. 触发极简飞书卡片报警
         if level != 0 and level not in self.alerted_levels:
             trigger_val = abs(level * step)
             
             if level > 0:
                 direction = "暴涨"
-                icon = "🚀"
                 template = "red" 
                 color = "red"    
                 sign = "+"
             else:
                 direction = "跳水"
-                icon = "📉"
                 template = "green" 
                 color = "green"    
                 sign = ""
 
-            title = f"{icon} 黄金风控警报 🚨"
+            title = f"伦敦金 (XAU) 风控警报"
             
-            # 使用飞书的 fields 布局，实现完美的双列 Key-Value 仪表盘
+            # 极简排版：抛弃多余图标和折行模块，直接加粗突出核心数据
             elements = [
                 {
-                    "tag": "div",
-                    "fields": [
-                        {
-                            "is_short": True,
-                            "text": {"tag": "lark_md", "content": "**📌 监控标的**\n伦敦金 (XAU)"}
-                        },
-                        {
-                            "is_short": True,
-                            "text": {"tag": "lark_md", "content": f"**⏱ 触发动态**\n<font color='{color}'>{direction}超 {trigger_val:.1f}%</font>"}
-                        },
-                        {
-                            "is_short": True,
-                            "text": {"tag": "lark_md", "content": f"**💵 现价 (USD/oz)**\n`{xau_price:.2f}`"}
-                        },
-                        {
-                            "is_short": True,
-                            "text": {"tag": "lark_md", "content": f"**💴 折合 (AU9999/克)**\n`¥ {au9999_price:.2f}`"}
-                        },
-                        {
-                            "is_short": False, # 单独占一行
-                            "text": {"tag": "lark_md", "content": f"**📈 今日波动**\n<font color='{color}'>{sign}{pct:.2f}%</font>"}
-                        }
-                    ]
+                    "tag": "markdown",
+                    "content": f"**触发动态**： <font color='{color}'>**{direction}超 {trigger_val:.1f}%**</font>\n**今日波动**： <font color='{color}'>**{sign}{pct:.2f}%**</font>"
+                },
+                {"tag": "hr"},
+                {
+                    "tag": "markdown",
+                    "content": f"**国际现价**： `{xau_price:.2f}` USD/oz\n**国内折合**： `¥ {au9999_price:.2f}` /克"
                 },
                 {"tag": "hr"},
                 {
                     "tag": "note",
-                    "elements": [{"tag": "lark_md", "content": "💡 **风控纪律**: 黄金避险盾适用「532战法」，切勿一次性卖出"}]
+                    "elements": [{"tag": "lark_md", "content": "💡 纪律：避险盾适用「532战法」，切勿一次性卖出"}]
                 }
             ]
             
-            # 推送卡片 (基于修改后的 notifier.py 支持 elements 参数)
             self.notifier.send_card(title=title, elements=elements, template=template)
             
             self.alerted_levels.add(level)
