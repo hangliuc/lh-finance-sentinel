@@ -122,7 +122,7 @@ class GoldWatcher:
                 {"tag": "hr"},
                 {
                     "tag": "markdown",
-                    "content": f"**国际现价**： `{xau_price:.2f}` USD/oz\n**国内折合**： `¥ {au9999_price:.2f}` /克"
+                    "content": f"**国际现价**： {xau_price:.2f} USD/oz\n**国内折合**： ¥ {au9999_price:.2f} /克"
                 },
                 {"tag": "hr"},
                 {
