@@ -90,7 +90,7 @@ class GoldWatcher:
         logging.info(f"🔎 黄金当前: {xau_price:.2f}, 折合 {au9999_price:.2f} 元/克, 波动: {pct:+.2f}%")
 
         level = 0
-        step = 0.001 
+        step = 1.0
 
         if pct >= 1.0:
             level = int(pct / step) 
