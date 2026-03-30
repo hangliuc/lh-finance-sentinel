@@ -57,7 +57,9 @@ class DailyReporter:
             return
 
         logging.info("开始执行 [日报任务]...")
-        lines = []
+        
+        # 存放飞书的 Grid 栏位
+        card_fields = []
         
         for item in self.config['holdings']:
             name = item['name']
@@ -66,7 +68,7 @@ class DailyReporter:
             price, day_change = self._get_price(symbol)
             if price is None or price == 0: continue
             
-            # --- 飞书视觉美化逻辑 (A股红涨绿跌) ---
+            # --- 飞书原生红涨绿跌 ---
             if day_change > 0:
                 color = "red"
                 icon = "📈" 
@@ -80,21 +82,41 @@ class DailyReporter:
                 icon = "⚪" 
                 sign = ""
 
-            # 飞书 Markdown 格式：
-            # **红利低波50ETF**
-            # 现价: 1.05  |  波动: <font color='red'>+1.2%</font> 📈
-            line = f"**{name}**\n现价: `{price}`  |  波动: <font color='{color}'>{sign}{day_change}%</font> {icon}"
-            lines.append(line)
+            # 组装每一个小模块
+            card_fields.append({
+                "is_short": True,  # 开启该选项会自动排列为双列并排
+                "text": {
+                    "tag": "lark_md",
+                    "content": f"**{name}**\n<font color='{color}'>{sign}{day_change}%</font> {icon} ｜ `{price}`\n "
+                }
+            })
             
-        if not lines:
+        if not card_fields:
             logging.warning("日报内容为空，跳过发送")
             return
 
-        # 使用飞书卡片的横线分隔符
-        report_content = "\n\n---\n\n".join(lines)
+        # 组装高级互动卡片结构
+        elements = [
+            {
+                "tag": "div",
+                "fields": card_fields
+            },
+            {
+                "tag": "hr" # 原生平滑分割线
+            },
+            {
+                "tag": "note", # 卡片底部小字备注
+                "elements": [
+                    {
+                        "tag": "lark_md",
+                        "content": "💡 **风控纪律**：优质资产越跌越买，做时间的朋友。"
+                    }
+                ]
+            }
+        ]
         
         current_time = time.strftime("%Y-%m-%d %H:%M")
         title = f"💷 收盘日报 ({current_time})"
         
-        # 调用飞书卡片，顶栏使用高级灰蓝色 (watchet)
-        self.notifier.send_card(title=title, markdown_content=report_content, template="watchet")
+        # watchet 是飞书特有的灰蓝色，看起来最像专业金融软件
+        self.notifier.send_card(title=title, elements=elements, template="watchet")
