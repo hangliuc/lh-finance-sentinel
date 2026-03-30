@@ -7,10 +7,6 @@ from chinese_calendar import is_workday
 
 class DailyReporter:
     def __init__(self, config, notifier):
-        """
-        :param config: 全局配置
-        :param notifier: 已经初始化好的 WeComNotifier 对象
-        """
         self.config = config
         self.notifier = notifier
         self.base_url = "http://qt.gtimg.cn/q="
@@ -19,28 +15,16 @@ class DailyReporter:
         }
 
     def _is_trading_day(self):
-        """
-        判断是否为A股交易日 
-        逻辑: 必须是 '法定工作日' 且 '必须是周一到周五'
-        (因为A股在调休上班的周末也是不开市的)
-        """
         today = datetime.now().date()
-        
-        # 1. 基础判断: 如果是法定节假日(春节/国庆等)或者是普通周末 -> is_workday 为 False
         if not is_workday(today):
             logging.info("😴 今天是法定节假日或休息日，A股休市")
             return False
-            
-        # 2. 调休过滤: 如果是法定工作日(is_workday=True)，但它是周六或周日 -> A股依然休市
         if today.weekday() >= 5:
             logging.info("😴 今天是调休上班日(周末)，A股休市")
             return False
-            
-        # 既是工作日，又是周一到周五 -> 开盘
         return True
 
     def _get_price(self, symbol):
-        """内部方法：获取价格"""
         try:
             url = f"{self.base_url}{symbol}"
             resp = requests.get(url, headers=self.headers, timeout=5)
@@ -69,11 +53,9 @@ class DailyReporter:
             return None, 0.00
 
     def run(self):
-        # 非交易日直接返回
         if not self._is_trading_day():
             return
 
-        """执行日报任务：抓取 -> 生成报告 -> 发送"""
         logging.info("开始执行 [日报任务]...")
         lines = []
         
@@ -82,27 +64,37 @@ class DailyReporter:
             symbol = item['symbol_ref']
             
             price, day_change = self._get_price(symbol)
-            
             if price is None or price == 0: continue
             
-            # 图标逻辑
+            # --- 飞书视觉美化逻辑 (A股红涨绿跌) ---
             if day_change > 0:
-                icon = "📈" ; sign = "+"
+                color = "red"
+                icon = "📈" 
+                sign = "+"
             elif day_change < 0:
-                icon = "📉" ; sign = "" 
+                color = "green"
+                icon = "📉" 
+                sign = "" 
             else:
-                icon = "⚪" ; sign = ""
+                color = "grey"
+                icon = "⚪" 
+                sign = ""
 
-            line = f"{name}\n{icon} {sign}{day_change}%  {price}"
+            # 飞书 Markdown 格式：
+            # **红利低波50ETF**
+            # 现价: 1.05  |  波动: <font color='red'>+1.2%</font> 📈
+            line = f"**{name}**\n现价: `{price}`  |  波动: <font color='{color}'>{sign}{day_change}%</font> {icon}"
             lines.append(line)
             
         if not lines:
             logging.warning("日报内容为空，跳过发送")
             return
 
-        report_content = "\n\n".join(lines)
-        current_time = time.strftime("%Y-%m-%d %H:%M:%S")
-        full_msg = f"💷 定时推送 ({current_time})💷 \n━━━━━━━━━━━━━━━\n{report_content}"
+        # 使用飞书卡片的横线分隔符
+        report_content = "\n\n---\n\n".join(lines)
         
-        # 使用注入的 notifier 发送，逻辑统一
-        self.notifier.send_text(full_msg)
+        current_time = time.strftime("%Y-%m-%d %H:%M")
+        title = f"💷 收盘日报 ({current_time})"
+        
+        # 调用飞书卡片，顶栏使用高级灰蓝色 (watchet)
+        self.notifier.send_card(title=title, markdown_content=report_content, template="watchet")

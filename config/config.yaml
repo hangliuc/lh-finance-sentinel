@@ -4,13 +4,15 @@ notification:
   mode: "webhook"
   
   webhook:
-    url: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=56c79598-1731-4892-949b-c8becbf6b93d"
+    # url: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=56c79598-1731-4892-949b-c8becbf6b93d"
+    url: "https://open.feishu.cn/open-apis/bot/v2/hook/d6e6dbec-3341-484c-a4d1-2b217bda814a" 
     
     # 需要 @ 的手机号 (可选，留空则不艾特)
     mention_list: [] 
   
   gold_webhook:
-    url: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=8d9d826a-05f3-4d3d-926b-45bcf581ba9c"
+    # url: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=8d9d826a-05f3-4d3d-926b-45bcf581ba9c"
+    url: "https://open.feishu.cn/open-apis/bot/v2/hook/32969fb4-87d7-4297-8124-dec34193e8de" 
 
 schedules:
   times: ["12:00", "14:30", "16:00"]

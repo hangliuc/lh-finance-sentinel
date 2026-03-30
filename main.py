@@ -24,9 +24,9 @@ def run():
     if not config: return
 
     # 通道A: 日报机器人
-    daily_notifier = WeComNotifier(config['notification']['webhook'])
+    daily_notifier = FeishuNotifier(config['notification']['webhook'])
     # 通道B: 黄金报警机器人
-    gold_notifier = WeComNotifier(config['notification']['gold_webhook'])
+    gold_notifier = FeishuNotifier(config['notification']['gold_webhook'])
 
     # 初始化任务 (Task) - 依赖注入 Notifier
     daily_task = DailyReporter(config, daily_notifier)

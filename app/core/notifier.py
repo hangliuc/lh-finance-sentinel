@@ -2,36 +2,44 @@
 import requests
 import logging
 
-class WeComNotifier:
+class FeishuNotifier:
     def __init__(self, config):
         self.webhook_url = config['url']
-        self.mention_list = config.get('mention_list', []) # 获取需要@的人
         self.headers = {"Content-Type": "application/json"}
 
-    def send_text(self, content):
+    def send_card(self, title, markdown_content, template="blue"):
         """
-        发送纯文本消息 (普通微信可见)
+        发送飞书互动卡片
+        :param title: 卡片标题
+        :param markdown_content: 卡片正文 (支持飞书 Markdown)
+        :param template: 顶栏颜色 (blue, watchet, red, green, orange 等)
         """
-        # 如果有配置 @手机号，拼接到文本末尾
-        if self.mention_list:
-             # 企微机器人 text 模式下，@需要用手机号列表
-             # 这里我们简单粗暴地把内容拼在一起
-             pass 
-
-        data = {
-            "msgtype": "text",
-            "text": {
-                "content": content,
-                "mentioned_mobile_list": self.mention_list # 真正实现 @提醒
+        payload = {
+            "msg_type": "interactive",
+            "card": {
+                "header": {
+                    "title": {
+                        "tag": "plain_text",
+                        "content": title
+                    },
+                    "template": template
+                },
+                "elements": [
+                    {
+                        "tag": "markdown",
+                        "content": markdown_content
+                    }
+                ]
             }
         }
         
         try:
-            resp = requests.post(self.webhook_url, json=data, headers=self.headers, timeout=10)
+            resp = requests.post(self.webhook_url, json=payload, headers=self.headers, timeout=10)
             result = resp.json()
-            if result.get('errcode') == 0:
-                logging.info("企业微信推送成功")
+            # 飞书成功的 code 是 0
+            if result.get('code') == 0:
+                logging.info(f"飞书卡片推送成功: {title}")
             else:
-                logging.error(f"推送失败: {result}")
+                logging.error(f"飞书推送失败: {result}")
         except Exception as e:
-            logging.error(f"网络异常: {e}")
+            logging.error(f"飞书网络异常: {e}")
