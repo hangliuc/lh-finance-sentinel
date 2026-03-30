@@ -58,65 +58,72 @@ class DailyReporter:
 
         logging.info("开始执行 [日报任务]...")
         
-        # 存放飞书的 Grid 栏位
-        card_fields = []
+        # 1. 构造完美的表格头部 (使用权重 3:2:2 控制列宽)
+        elements = [
+            {
+                "tag": "column_set",
+                "flex_mode": "none",
+                "columns": [
+                    {"tag": "column", "width": "weighted", "weight": 3, "elements": [{"tag": "markdown", "content": "**📊 标的**"}]},
+                    {"tag": "column", "width": "weighted", "weight": 2, "elements": [{"tag": "markdown", "content": "**💰 现价**"}]},
+                    {"tag": "column", "width": "weighted", "weight": 2, "elements": [{"tag": "markdown", "content": "**📈 涨跌**"}]}
+                ]
+            },
+            {"tag": "hr"} # 表头下的分割线
+        ]
         
+        valid_items = 0
+
+        # 2. 构造表格数据行
         for item in self.config['holdings']:
             name = item['name']
+            # 为了表格紧凑，如果名字里有"指数"两个字可以自动去掉（可选优化）
+            name = name.replace(" 指数", "") 
             symbol = item['symbol_ref']
             
             price, day_change = self._get_price(symbol)
             if price is None or price == 0: continue
+            valid_items += 1
             
-            # --- 飞书原生红涨绿跌 ---
             if day_change > 0:
                 color = "red"
-                icon = "📈" 
                 sign = "+"
             elif day_change < 0:
                 color = "green"
-                icon = "📉" 
                 sign = "" 
             else:
                 color = "grey"
-                icon = "⚪" 
                 sign = ""
 
-            # 组装每一个小模块
-            card_fields.append({
-                "is_short": True,  # 开启该选项会自动排列为双列并排
-                "text": {
-                    "tag": "lark_md",
-                    "content": f"**{name}**\n<font color='{color}'>{sign}{day_change}%</font> {icon} ｜ `{price}`\n "
-                }
+            # 每一行都是一个 column_set，保证绝对的垂直对齐
+            # 去掉了花哨的 emoji，回归纯粹的数据展示
+            elements.append({
+                "tag": "column_set",
+                "flex_mode": "none",
+                "columns": [
+                    {"tag": "column", "width": "weighted", "weight": 3, "elements": [{"tag": "markdown", "content": f"**{name}**"}]},
+                    {"tag": "column", "width": "weighted", "weight": 2, "elements": [{"tag": "markdown", "content": f"{price}"}]},
+                    {"tag": "column", "width": "weighted", "weight": 2, "elements": [{"tag": "markdown", "content": f"<font color='{color}'>{sign}{day_change}%</font>"}]}
+                ]
             })
             
-        if not card_fields:
+        if valid_items == 0:
             logging.warning("日报内容为空，跳过发送")
             return
 
-        # 组装高级互动卡片结构
-        elements = [
-            {
-                "tag": "div",
-                "fields": card_fields
-            },
-            {
-                "tag": "hr" # 原生平滑分割线
-            },
-            {
-                "tag": "note", # 卡片底部小字备注
-                "elements": [
-                    {
-                        "tag": "lark_md",
-                        "content": "💡 **风控纪律**：优质资产越跌越买，做时间的朋友。"
-                    }
-                ]
-            }
-        ]
+        # 3. 底部风控纪律
+        elements.append({"tag": "hr"})
+        elements.append({
+            "tag": "note",
+            "elements": [
+                {
+                    "tag": "lark_md",
+                    "content": "💡 **风控纪律**: 优质资产越跌越买，做时间的朋友"
+                }
+            ]
+        })
         
         current_time = time.strftime("%Y-%m-%d %H:%M")
         title = f"💷 收盘日报 ({current_time})"
         
-        # watchet 是飞书特有的灰蓝色，看起来最像专业金融软件
         self.notifier.send_card(title=title, elements=elements, template="watchet")
