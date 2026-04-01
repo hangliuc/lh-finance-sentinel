@@ -1,26 +1,25 @@
 # app/core/notifier.py
 import requests
 import logging
+import time
 
 class FeishuNotifier:
     def __init__(self, config):
         self.webhook_url = config['url']
         self.headers = {"Content-Type": "application/json"}
 
-    def send_card(self, title, markdown_content=None, elements=None, template="blue"):
+    def send_card(self, title, markdown_content=None, elements=None, template="blue", max_retries=3):
         """
-        发送飞书互动卡片 (支持高级 Grid 布局)
+        发送飞书互动卡片 (支持高级 Grid 布局与自动重试机制)
         """
         card_elements = []
         
-        # 兼容旧版的简单 Markdown 传入
         if markdown_content:
             card_elements.append({
                 "tag": "markdown",
                 "content": markdown_content
             })
             
-        # 拼接高级元素 (如 div, fields, note 等)
         if elements:
             card_elements.extend(elements)
 
@@ -28,7 +27,7 @@ class FeishuNotifier:
             "msg_type": "interactive",
             "card": {
                 "config": {
-                    "wide_screen_mode": True  # 强制开启宽屏，卡片更紧凑，防止文字换行
+                    "wide_screen_mode": True  
                 },
                 "header": {
                     "title": {
@@ -41,6 +40,7 @@ class FeishuNotifier:
             }
         }
         
+        # --- SRE 标准重试机制 (Exponential Backoff) ---
         for attempt in range(max_retries):
             try:
                 resp = requests.post(self.webhook_url, json=payload, headers=self.headers, timeout=10)
