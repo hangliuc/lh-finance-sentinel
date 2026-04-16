@@ -42,4 +42,7 @@ holdings:
 
   - name: "粮食ETF"
     symbol_ref: "sz159698"      # 粮食ETF
+  
+  - name: "机器人ETF华夏"
+    symbol_ref: "sh562500"      # 南方机器人ETF华夏
 
