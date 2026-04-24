@@ -25,8 +25,8 @@ holdings:
   - name: "纳斯达克100 指数"
     symbol_ref: "usNDX"        
 
-  - name: "沪深300 指数"
-    symbol_ref: "sh000300"  
+  - name: "南方中证A500ETF"
+    symbol_ref: "sz159352"  
 
   - name: "恒生科技 指数"
     symbol_ref: "hkHSTECH"
