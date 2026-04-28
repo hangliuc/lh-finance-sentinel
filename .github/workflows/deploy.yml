@@ -29,7 +29,7 @@ jobs:
           SOURCE: "."
           REMOTE_HOST: ${{ secrets.SERVER_HOST }}
           REMOTE_USER: "root"
-          TARGET: "/root/lh-wx-helper/" 
+          TARGET: "/root/lh-finance-sentinel/" 
 
       # 2. 远程执行 Docker 构建与重启
       - name: Build and Restart Docker
@@ -42,23 +42,23 @@ jobs:
             echo "🚀 Starting Deployment..."
             
             # 进入项目目录
-            cd /root/lh-wx-helper
+            cd /root/lh-finance-sentinel
             
             # 1. 构建新镜像 (覆盖 latest 标签)
             echo "🔨 Building Docker Image..."
-            docker build -t lh-wx-helper:latest .
+            docker build -t lh-finance-sentinel:latest .
             
             # 2. 停止并删除旧容器 (如果存在)
             echo "🛑 Stopping old container..."
-            docker rm -f lh-wx-helper || true
+            docker rm -f lh-finance-sentinel || true
             
             # 3. 启动新容器
             echo "▶️ Starting new container..."
             docker run -d \
-              --name lh-wx-helper \
+              --name lh-finance-sentinel \
               --restart always \
               -v $(pwd)/config:/app/config \
               -e TZ=Asia/Shanghai \
-              lh-wx-helper:latest
+              lh-finance-sentinel:latest
             
             echo "✅ Deployment Finished. 全量代码同步完成！"
