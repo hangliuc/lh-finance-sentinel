@@ -46,3 +46,6 @@ holdings:
   - name: "机器人ETF华夏"
     symbol_ref: "sh562500"      # 南方机器人ETF华夏
 
+  - name: "电池ETF南方"
+    symbol_ref: "sz159147"     
+
