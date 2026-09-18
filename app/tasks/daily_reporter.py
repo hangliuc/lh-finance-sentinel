@@ -1,15 +1,47 @@
 # app/tasks/daily_reporter.py
 import requests
 import logging
+import re
 import time
 from datetime import datetime
+from html.parser import HTMLParser
 from chinese_calendar import is_workday
+
+
+class _FundNavTableParser(HTMLParser):
+    """提取搜狐基金净值列表中的日期和单位净值。"""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.rows = []
+        self._row = None
+        self._cell = None
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "tr":
+            self._row = []
+        elif tag == "td" and self._row is not None:
+            self._cell = []
+
+    def handle_data(self, data):
+        if self._cell is not None:
+            self._cell.append(data)
+
+    def handle_endtag(self, tag):
+        if tag == "td" and self._cell is not None:
+            self._row.append(" ".join("".join(self._cell).split()))
+            self._cell = None
+        elif tag == "tr" and self._row is not None:
+            self.rows.append(self._row)
+            self._row = None
+
 
 class DailyReporter:
     def __init__(self, config, notifier):
         self.config = config
         self.notifier = notifier
         self.base_url = "http://qt.gtimg.cn/q="
+        self.fund_nav_url = "https://q.fund.sohu.com/q/vl.php"
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
@@ -37,20 +69,82 @@ class DailyReporter:
             data_str = content.split('="')[1].split('"')[0]
             if not data_str: return None, 0.0
             fields = data_str.split("~")
-            if len(fields) < 10: return None, 0.0
+            min_fields = 6 if symbol.startswith("gz") else 10
+            if len(fields) < min_fields: return None, 0.0
 
             current_price = float(fields[3])
-            prev_close = float(fields[4])
-            if current_price == 0: current_price = prev_close
 
-            change_pct = 0.0
-            if prev_close > 0:
-                change_pct = ((current_price - prev_close) / prev_close) * 100
+            # 腾讯全球指数(gz*)返回“涨跌额、涨跌幅”，而非昨收价。
+            if symbol.startswith("gz"):
+                change_pct = float(fields[5]) if fields[5] else 0.0
+            else:
+                prev_close = float(fields[4])
+                if current_price == 0: current_price = prev_close
+
+                change_pct = 0.0
+                if prev_close > 0:
+                    change_pct = ((current_price - prev_close) / prev_close) * 100
             
             return current_price, round(change_pct, 2)
         except Exception as e:
             logging.error(f"获取行情失败 {symbol}: {e}")
             return None, 0.00
+
+    def _get_historical_changes(self, symbol):
+        """按基金单位净值计算最近两日涨跌幅，返回 [T-1, T-2]。"""
+        try:
+            match = re.search(r"(\d{6})$", symbol)
+            if not match:
+                return []
+
+            resp = requests.get(
+                self.fund_nav_url,
+                params={"code": match.group(1)},
+                headers=self.headers,
+                timeout=5,
+            )
+            parser = _FundNavTableParser()
+            parser.feed(resp.text)
+
+            today = datetime.now().date()
+            nav_by_date = {}
+            for row in parser.rows:
+                if len(row) < 2:
+                    continue
+                date_match = re.search(r"\d{4}-\d{2}-\d{2}", row[0])
+                value_match = re.search(r"\d+(?:\.\d+)?", row[1])
+                if not date_match or not value_match:
+                    continue
+                trade_date = datetime.strptime(date_match.group(), "%Y-%m-%d").date()
+                nav = float(value_match.group())
+                if trade_date < today and nav > 0:
+                    nav_by_date[trade_date] = nav
+
+            navs = sorted(nav_by_date.items(), reverse=True)
+            if len(navs) < 3:
+                return []
+
+            changes = []
+            for (_, current_nav), (_, previous_nav) in zip(navs, navs[1:]):
+                if previous_nav > 0:
+                    changes.append(round((current_nav - previous_nav) / previous_nav * 100, 2))
+
+            return changes[:2]
+        except Exception as e:
+            logging.error(f"获取基金净值失败 {symbol}: {e}")
+            return []
+
+    @staticmethod
+    def _format_change(change):
+        if change is None:
+            return "—"
+        if change > 0:
+            color, sign = "red", "+"
+        elif change < 0:
+            color, sign = "green", ""
+        else:
+            color, sign = "grey", ""
+        return f"<font color='{color}'>{sign}{change}%</font>"
 
     def _build_index_column(self, item):
         """构造顶部大盘指数列 (居中展示，配色 + 箭头)"""
@@ -128,8 +222,9 @@ class DailyReporter:
             "flex_mode": "none",
             "columns": [
                 {"tag": "column", "width": "weighted", "weight": 3, "elements": [{"tag": "markdown", "content": "**❤️我的持仓**"}]},
-                {"tag": "column", "width": "weighted", "weight": 2, "elements": [{"tag": "markdown", "content": "**💰 现价**"}]},
-                {"tag": "column", "width": "weighted", "weight": 2, "elements": [{"tag": "markdown", "content": "**📈 涨跌**"}]}
+                {"tag": "column", "width": "weighted", "weight": 2, "elements": [{"tag": "markdown", "content": "**T日涨跌**"}]},
+                {"tag": "column", "width": "weighted", "weight": 2, "elements": [{"tag": "markdown", "content": "**T-1**"}]},
+                {"tag": "column", "width": "weighted", "weight": 2, "elements": [{"tag": "markdown", "content": "**T-2**"}]}
             ]
         })
         elements.append({"tag": "hr"})
@@ -139,7 +234,7 @@ class DailyReporter:
         # ============ 3. 持仓数据行 (按涨跌幅由大到小排序，每行后加分割线) ============
         holdings = self.config.get('holdings', [])
 
-        # 3.1 先批量取价，过滤掉获取失败的
+        # 3.1 取 T 日场内行情，并读取 T-1/T-2 基金单位净值
         rows = []
         for item in holdings:
             name = item['name'].replace(" 指数", "")
@@ -147,7 +242,13 @@ class DailyReporter:
             price, day_change = self._get_price(symbol)
             if price is None or price == 0:
                 continue
-            rows.append({"name": name, "price": price, "change": day_change})
+            history_changes = self._get_historical_changes(symbol)
+            rows.append({
+                "name": name,
+                "change": day_change,
+                "t1_change": history_changes[0] if len(history_changes) > 0 else None,
+                "t2_change": history_changes[1] if len(history_changes) > 1 else None,
+            })
 
         # 3.2 按涨跌幅由大到小排序 (涨幅最大在最上)
         rows.sort(key=lambda r: r["change"], reverse=True)
@@ -155,27 +256,17 @@ class DailyReporter:
         # 3.3 渲染
         for idx, row in enumerate(rows):
             name = row["name"]
-            price = row["price"]
             day_change = row["change"]
             valid_items += 1
-
-            if day_change > 0:
-                color = "red"
-                sign = "+"
-            elif day_change < 0:
-                color = "green"
-                sign = ""
-            else:
-                color = "grey"
-                sign = ""
 
             elements.append({
                 "tag": "column_set",
                 "flex_mode": "none",
                 "columns": [
                     {"tag": "column", "width": "weighted", "weight": 3, "elements": [{"tag": "markdown", "content": f"**{name}**"}]},
-                    {"tag": "column", "width": "weighted", "weight": 2, "elements": [{"tag": "markdown", "content": f"{price}"}]},
-                    {"tag": "column", "width": "weighted", "weight": 2, "elements": [{"tag": "markdown", "content": f"<font color='{color}'>{sign}{day_change}%</font>"}]}
+                    {"tag": "column", "width": "weighted", "weight": 2, "elements": [{"tag": "markdown", "content": self._format_change(day_change)}]},
+                    {"tag": "column", "width": "weighted", "weight": 2, "elements": [{"tag": "markdown", "content": self._format_change(row["t1_change"])}]},
+                    {"tag": "column", "width": "weighted", "weight": 2, "elements": [{"tag": "markdown", "content": self._format_change(row["t2_change"])}]}
                 ]
             })
             # 每行后加一条淡分割线 (最后一行不加，由底部 hr 收尾)
@@ -193,7 +284,7 @@ class DailyReporter:
             "elements": [
                 {
                     "tag": "lark_md",
-                    "content": "💡 **风控纪律**: 优质资产越跌越买，做时间的朋友"
+                    "content": "💡 做时间的朋友"
                 }
             ]
         })
