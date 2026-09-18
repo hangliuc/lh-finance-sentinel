@@ -157,8 +157,11 @@ class DailyReporter:
         return f"<font color='{color}'>{content}</font>"
 
     @staticmethod
-    def _value_markdown(content, text_align="center"):
-        return {"tag": "markdown", "content": content, "text_align": text_align}
+    def _value_markdown(content, text_align="center", text_size=None):
+        element = {"tag": "markdown", "content": content, "text_align": text_align}
+        if text_size is not None:
+            element["text_size"] = text_size
+        return element
 
     @classmethod
     def _build_table_header(cls):
@@ -167,33 +170,33 @@ class DailyReporter:
             "tag": "column_set",
             "flex_mode": "none",
             "background_style": "grey",
-            "horizontal_spacing": "small",
+            "horizontal_spacing": "none",
             "columns": [
                 {
                     "tag": "column",
                     "width": "weighted",
-                    "weight": 3,
+                    "weight": 5,
                     "vertical_align": "center",
                     "elements": [cls._value_markdown("**❤️ 我的持仓**", "left")],
                 },
                 {
                     "tag": "column",
                     "width": "weighted",
-                    "weight": 2,
+                    "weight": 3,
                     "vertical_align": "center",
                     "elements": [cls._value_markdown("**T 日**\n<font color='grey'>场内</font>")],
                 },
                 {
                     "tag": "column",
                     "width": "weighted",
-                    "weight": 2,
+                    "weight": 3,
                     "vertical_align": "center",
                     "elements": [cls._value_markdown("**T-1**\n<font color='grey'>净值</font>")],
                 },
                 {
                     "tag": "column",
                     "width": "weighted",
-                    "weight": 2,
+                    "weight": 3,
                     "vertical_align": "center",
                     "elements": [cls._value_markdown("**T-2**\n<font color='grey'>净值</font>")],
                 },
@@ -205,37 +208,52 @@ class DailyReporter:
         return {
             "tag": "column_set",
             "flex_mode": "none",
-            "horizontal_spacing": "small",
+            "horizontal_spacing": "none",
             "columns": [
                 {
                     "tag": "column",
                     "width": "weighted",
-                    "weight": 3,
-                    "vertical_align": "center",
-                    "elements": [cls._value_markdown(f"**{row['name']}**", "left")],
-                },
-                {
-                    "tag": "column",
-                    "width": "weighted",
-                    "weight": 2,
+                    "weight": 5,
                     "vertical_align": "center",
                     "elements": [
-                        cls._value_markdown(cls._format_change(row["change"], emphasized=True))
+                        cls._value_markdown(
+                            f"**{row['name']}**", "left", text_size="small"
+                        )
                     ],
                 },
                 {
                     "tag": "column",
                     "width": "weighted",
-                    "weight": 2,
+                    "weight": 3,
                     "vertical_align": "center",
-                    "elements": [cls._value_markdown(cls._format_change(row["t1_change"]))],
+                    "elements": [
+                        cls._value_markdown(
+                            cls._format_change(row["change"], emphasized=True),
+                            text_size="medium",
+                        )
+                    ],
                 },
                 {
                     "tag": "column",
                     "width": "weighted",
-                    "weight": 2,
+                    "weight": 3,
                     "vertical_align": "center",
-                    "elements": [cls._value_markdown(cls._format_change(row["t2_change"]))],
+                    "elements": [
+                        cls._value_markdown(
+                            cls._format_change(row["t1_change"]), text_size="normal"
+                        )
+                    ],
+                },
+                {
+                    "tag": "column",
+                    "width": "weighted",
+                    "weight": 3,
+                    "vertical_align": "center",
+                    "elements": [
+                        cls._value_markdown(
+                            cls._format_change(row["t2_change"]), text_size="normal"
+                        )
+                    ],
                 },
             ],
         }
@@ -316,7 +334,7 @@ class DailyReporter:
         # ============ 3. 持仓数据行 (按涨跌幅由大到小排序，每行后加分割线) ============
         holdings = self.config.get('holdings', [])
 
-        # 3.1 取 T 日场内行情，并读取 T-1/T-2 基金单位净值
+        # 3.1 取 T 日场内行情用于展示和排序，并读取 T-1、T-2 基金单位净值
         rows = []
         for item in holdings:
             name = item['name'].replace(" 指数", "")
@@ -355,7 +373,7 @@ class DailyReporter:
             "elements": [
                 {
                     "tag": "lark_md",
-                    "content": "💡 按 T 日涨跌排序 · 红涨绿跌 · 净值数据为 T-1 / T-2"
+                    "content": "💡 红涨绿跌 · 按 T 日涨跌排序 · 净值：T-1、T-2"
                 }
             ]
         })

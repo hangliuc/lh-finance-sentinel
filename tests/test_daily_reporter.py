@@ -52,10 +52,21 @@ class DailyReporterCardTests(unittest.TestCase):
         # 排序后，涨幅更高的 A500 应排在黄金 ETF 前面。
         first_row = elements[4]
         second_row = elements[6]
+        self.assertEqual(len(elements[2]["columns"]), 4)
+        self.assertEqual(len(first_row["columns"]), 4)
         self.assertIn("南方中证A500ETF", first_row["columns"][0]["elements"][0]["content"])
         self.assertIn("黄金ETF", second_row["columns"][0]["elements"][0]["content"])
-        self.assertIn("+2.85%", first_row["columns"][1]["elements"][0]["content"])
+        current_change = first_row["columns"][1]["elements"][0]
+        self.assertIn("+2.85%", current_change["content"])
+        self.assertIn("**", current_change["content"])
+        self.assertEqual(current_change["text_size"], "medium")
+        self.assertEqual(
+            first_row["columns"][2]["elements"][0]["text_size"], "normal"
+        )
+        self.assertEqual(first_row["columns"][0]["weight"], 5)
+        self.assertEqual(first_row["columns"][0]["elements"][0]["text_size"], "small")
         self.assertIn("-0.32%", first_row["columns"][2]["elements"][0]["content"])
+        self.assertIn("+2.72%", first_row["columns"][3]["elements"][0]["content"])
 
     def test_change_format_is_consistent(self):
         self.assertEqual(DailyReporter._format_change(2.8), "<font color='red'>+2.80%</font>")
