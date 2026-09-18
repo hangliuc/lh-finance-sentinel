@@ -135,16 +135,110 @@ class DailyReporter:
             return []
 
     @staticmethod
-    def _format_change(change):
+    def _change_text(change):
         if change is None:
             return "—"
         if change > 0:
-            color, sign = "red", "+"
+            return f"+{change:.2f}%"
         elif change < 0:
-            color, sign = "green", ""
-        else:
-            color, sign = "grey", ""
-        return f"<font color='{color}'>{sign}{change}%</font>"
+            return f"{change:.2f}%"
+        return "0.00%"
+
+    @classmethod
+    def _format_change(cls, change, emphasized=False):
+        """按中国市场习惯显示涨跌：红涨、绿跌，缺失值使用中性灰。"""
+        if change is None:
+            return "<font color='grey'>—</font>"
+
+        color = "red" if change > 0 else "green" if change < 0 else "grey"
+        content = cls._change_text(change)
+        if emphasized:
+            return f"**<font color='{color}'>{content}</font>**"
+        return f"<font color='{color}'>{content}</font>"
+
+    @staticmethod
+    def _value_markdown(content, text_align="center"):
+        return {"tag": "markdown", "content": content, "text_align": text_align}
+
+    @classmethod
+    def _build_table_header(cls):
+        """用灰底建立表头，让表格和顶部指数区块形成统一的卡片层级。"""
+        return {
+            "tag": "column_set",
+            "flex_mode": "none",
+            "background_style": "grey",
+            "horizontal_spacing": "small",
+            "columns": [
+                {
+                    "tag": "column",
+                    "width": "weighted",
+                    "weight": 3,
+                    "vertical_align": "center",
+                    "elements": [cls._value_markdown("**❤️ 我的持仓**", "left")],
+                },
+                {
+                    "tag": "column",
+                    "width": "weighted",
+                    "weight": 2,
+                    "vertical_align": "center",
+                    "elements": [cls._value_markdown("**T 日**\n<font color='grey'>场内</font>")],
+                },
+                {
+                    "tag": "column",
+                    "width": "weighted",
+                    "weight": 2,
+                    "vertical_align": "center",
+                    "elements": [cls._value_markdown("**T-1**\n<font color='grey'>净值</font>")],
+                },
+                {
+                    "tag": "column",
+                    "width": "weighted",
+                    "weight": 2,
+                    "vertical_align": "center",
+                    "elements": [cls._value_markdown("**T-2**\n<font color='grey'>净值</font>")],
+                },
+            ],
+        }
+
+    @classmethod
+    def _build_holding_row(cls, row):
+        return {
+            "tag": "column_set",
+            "flex_mode": "none",
+            "horizontal_spacing": "small",
+            "columns": [
+                {
+                    "tag": "column",
+                    "width": "weighted",
+                    "weight": 3,
+                    "vertical_align": "center",
+                    "elements": [cls._value_markdown(f"**{row['name']}**", "left")],
+                },
+                {
+                    "tag": "column",
+                    "width": "weighted",
+                    "weight": 2,
+                    "vertical_align": "center",
+                    "elements": [
+                        cls._value_markdown(cls._format_change(row["change"], emphasized=True))
+                    ],
+                },
+                {
+                    "tag": "column",
+                    "width": "weighted",
+                    "weight": 2,
+                    "vertical_align": "center",
+                    "elements": [cls._value_markdown(cls._format_change(row["t1_change"]))],
+                },
+                {
+                    "tag": "column",
+                    "width": "weighted",
+                    "weight": 2,
+                    "vertical_align": "center",
+                    "elements": [cls._value_markdown(cls._format_change(row["t2_change"]))],
+                },
+            ],
+        }
 
     def _build_index_column(self, item):
         """构造顶部大盘指数列 (居中展示，配色 + 箭头)"""
@@ -159,15 +253,12 @@ class DailyReporter:
         if day_change > 0:
             color = "red"
             arrow = "▲"
-            sign = "+"
         elif day_change < 0:
             color = "green"
             arrow = "▼"
-            sign = ""
         else:
             color = "grey"
-            arrow = "─"
-            sign = ""
+            arrow = "•"
 
         # 指数(如上证 3000+)用千分位，ETF/个股保留两位小数即可
         if price >= 1000:
@@ -178,7 +269,7 @@ class DailyReporter:
         content = (
             f"<font color='grey'>{flag} {name}</font>\n"
             f"**{price_str}**\n"
-            f"<font color='{color}'>{arrow} {sign}{day_change}%</font>"
+            f"<font color='{color}'>{arrow} {self._change_text(day_change)}</font>"
         )
 
         return {
@@ -217,16 +308,7 @@ class DailyReporter:
             elements.append({"tag": "hr"})
 
         # ============ 2. 持仓列表表头 ============
-        elements.append({
-            "tag": "column_set",
-            "flex_mode": "none",
-            "columns": [
-                {"tag": "column", "width": "weighted", "weight": 3, "elements": [{"tag": "markdown", "content": "**❤️我的持仓**"}]},
-                {"tag": "column", "width": "weighted", "weight": 2, "elements": [{"tag": "markdown", "content": "**T日涨跌**"}]},
-                {"tag": "column", "width": "weighted", "weight": 2, "elements": [{"tag": "markdown", "content": "**T-1**"}]},
-                {"tag": "column", "width": "weighted", "weight": 2, "elements": [{"tag": "markdown", "content": "**T-2**"}]}
-            ]
-        })
+        elements.append(self._build_table_header())
         elements.append({"tag": "hr"})
 
         valid_items = 0
@@ -255,20 +337,9 @@ class DailyReporter:
 
         # 3.3 渲染
         for idx, row in enumerate(rows):
-            name = row["name"]
-            day_change = row["change"]
             valid_items += 1
 
-            elements.append({
-                "tag": "column_set",
-                "flex_mode": "none",
-                "columns": [
-                    {"tag": "column", "width": "weighted", "weight": 3, "elements": [{"tag": "markdown", "content": f"**{name}**"}]},
-                    {"tag": "column", "width": "weighted", "weight": 2, "elements": [{"tag": "markdown", "content": self._format_change(day_change)}]},
-                    {"tag": "column", "width": "weighted", "weight": 2, "elements": [{"tag": "markdown", "content": self._format_change(row["t1_change"])}]},
-                    {"tag": "column", "width": "weighted", "weight": 2, "elements": [{"tag": "markdown", "content": self._format_change(row["t2_change"])}]}
-                ]
-            })
+            elements.append(self._build_holding_row(row))
             # 每行后加一条淡分割线 (最后一行不加，由底部 hr 收尾)
             if idx < len(rows) - 1:
                 elements.append({"tag": "hr"})
@@ -284,12 +355,12 @@ class DailyReporter:
             "elements": [
                 {
                     "tag": "lark_md",
-                    "content": "💡 做时间的朋友"
+                    "content": "💡 按 T 日涨跌排序 · 红涨绿跌 · 净值数据为 T-1 / T-2"
                 }
             ]
         })
 
         current_time = time.strftime("%Y-%m-%d %H:%M")
-        title = f"💷 收盘日报 ({current_time})"
+        title = f"📊 收盘日报 ({current_time})"
 
-        self.notifier.send_card(title=title, elements=elements, template="watchet")
+        self.notifier.send_card(title=title, elements=elements, template="indigo")
